@@ -3,7 +3,7 @@
     {
       "name": "macOS",
       "includePath": [
-        "${workspaceFolder}/include",
+        "${workspaceFolder}/backend/include",
         "/opt/homebrew/opt/opencv/include/opencv4",
         "${workspaceFolder}/**"
       ],

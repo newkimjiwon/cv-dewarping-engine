@@ -2,7 +2,7 @@
 
 휴대폰으로 촬영한 문서 이미지를 인식해서, 삐뚤어진 원근감을 보정하고 평평한 스캔 이미지처럼 펴 주는 C++ CLI 프로젝트입니다.
 
-이 프로젝트는 macOS + VS Code 환경에서 시작하는 것을 기준으로 작성되어 있고, 나중에 JNI나 Objective-C++로 옮기기 쉽도록 `main()`과 비전 처리 로직을 분리해 두었습니다.
+이 프로젝트는 macOS + VS Code 환경에서 시작하는 것을 기준으로 작성되어 있고, 나중에 JNI나 Objective-C++로 옮기기 쉽도록 `main()`과 비전 처리 로직을 분리해 두었습니다. 현재는 C++ 코어를 `backend/`에 두고, 이후 iOS 앱 레이어는 `frontend/ios-app/`에 붙일 수 있도록 폴더를 분리해 두었습니다.
 
 ## What This Project Does
 
@@ -23,17 +23,21 @@
 
 ```text
 cv-dewarping-engine/
-├── include/
-│   ├── document_scanner.hpp   # 비전 처리 로직의 공개 인터페이스
-│   └── scanner_config.hpp     # 조정 가능한 설정 인터페이스
+├── backend/
+│   ├── include/
+│   │   ├── document_scanner.hpp   # 비전 처리 로직의 공개 인터페이스
+│   │   └── scanner_config.hpp     # 조정 가능한 설정 인터페이스
+│   └── src/
+│       ├── scanner_config.cpp     # 하드코딩된 설정값 관리
+│       ├── document_scanner.cpp   # 문서 검출 + 투시 변환 로직
+│       └── main.cpp               # CLI 진입점, 파일 입출력, JSON 출력
+├── frontend/
+│   └── ios-app/
+│       └── .gitkeep               # 추후 Swift/iOS 앱 레이어 위치
 ├── inputs/
 │   └── .gitkeep               # 테스트용 입력 이미지를 넣는 폴더
 ├── outputs/
 │   └── .gitkeep               # 보정된 결과 이미지가 저장되는 폴더
-├── src/
-│   ├── scanner_config.cpp     # 하드코딩된 설정값 관리
-│   ├── document_scanner.cpp   # 문서 검출 + 투시 변환 로직
-│   └── main.cpp               # CLI 진입점, 파일 입출력, JSON 출력
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -69,8 +73,8 @@ pkg-config --modversion opencv4
 
 ```bash
 clang++ -std=c++17 -O2 \
-  src/main.cpp src/scanner_config.cpp src/document_scanner.cpp \
-  -Iinclude \
+  backend/src/main.cpp backend/src/scanner_config.cpp backend/src/document_scanner.cpp \
+  -Ibackend/include \
   $(pkg-config --cflags --libs opencv4) \
   -o scanner
 ```
@@ -87,7 +91,7 @@ VS Code에서 아래 같은 에러가 보일 수 있습니다.
 
 이 경우는 대부분 코드 문제보다 VS Code IntelliSense 설정 문제입니다.
 
-이 프로젝트에는 이미 OpenCV 헤더 경로를 포함한 [.vscode/c_cpp_properties.json](/Users/newkimjiwon/project/cv-dewarping-engine/.vscode/c_cpp_properties.json:1)을 추가해 두었습니다.
+이 프로젝트에는 이미 OpenCV 헤더 경로와 `backend/include`를 포함한 [.vscode/c_cpp_properties.json](/Users/newkimjiwon/project/cv-dewarping-engine/.vscode/c_cpp_properties.json:1)을 추가해 두었습니다.
 
 그래도 에러가 남아 있으면 아래 순서로 확인해 보세요.
 
@@ -200,11 +204,11 @@ pkg-config --cflags --libs opencv4
 
 ## Code Design Notes
 
-- [src/main.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/main.cpp:1): CLI 인자 처리, 이미지 로드/저장, JSON 출력 담당
-- [src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/scanner_config.cpp:1): 검출, 마킹, 출력 경로, 흑백 스캔 처리에 쓰는 설정값 관리
-- [src/document_scanner.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/document_scanner.cpp:1): 문서 검출 및 투시 보정 담당
-- [include/document_scanner.hpp](/Users/newkimjiwon/project/cv-dewarping-engine/include/document_scanner.hpp:1): 비전 모듈 인터페이스
+- [backend/src/main.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/backend/src/main.cpp:1): CLI 인자 처리, 이미지 로드/저장, JSON 출력 담당
+- [backend/src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/backend/src/scanner_config.cpp:1): 검출, 마킹, 출력 경로, 흑백 스캔 처리에 쓰는 설정값 관리
+- [backend/src/document_scanner.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/backend/src/document_scanner.cpp:1): 문서 검출 및 투시 보정 담당
+- [backend/include/document_scanner.hpp](/Users/newkimjiwon/project/cv-dewarping-engine/backend/include/document_scanner.hpp:1): 비전 모듈 인터페이스
 
-튜닝이 필요할 때는 보통 [src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/scanner_config.cpp:1)의 값만 먼저 조정하면 됩니다.
+튜닝이 필요할 때는 보통 [backend/src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/backend/src/scanner_config.cpp:1)의 값만 먼저 조정하면 됩니다.
 
 즉, 나중에 모바일 환경으로 옮길 때는 `main.cpp`를 대체하고 `detectAndWarpDocument()`를 재사용하는 방향으로 가져가면 됩니다.
