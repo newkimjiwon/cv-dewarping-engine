@@ -50,6 +50,20 @@ std::vector<cv::Point2f> orderCorners(const std::vector<cv::Point>& polygon) {
     return ordered;
 }
 
+std::vector<cv::Point2f> scaleCorners(
+    const std::vector<cv::Point2f>& corners,
+    const float scaleX,
+    const float scaleY) {
+    std::vector<cv::Point2f> scaledCorners;
+    scaledCorners.reserve(corners.size());
+
+    for (const auto& corner : corners) {
+        scaledCorners.emplace_back(corner.x * scaleX, corner.y * scaleY);
+    }
+
+    return scaledCorners;
+}
+
 bool isReasonableDocumentContour(
     const std::vector<cv::Point>& contour,
     const cv::Size& imageSize) {
@@ -182,20 +196,15 @@ cv::Mat enhanceScannedDocument(const cv::Mat& warpedColorImage) {
     return softenedScan;
 }
 
-}  // namespace
-
-ScanResult detectAndWarpDocument(
-    const cv::Mat& inputImage,
-    cv::Mat& warpedImage) {
-    ScanResult result;
-
-    if (inputImage.empty()) {
-        result.message = "Input image is empty.";
-        return result;
+bool detectDocumentCornersFromImage(
+    const cv::Mat& image,
+    std::vector<cv::Point2f>& corners) {
+    if (image.empty()) {
+        return false;
     }
 
     cv::Mat grayscale;
-    cv::cvtColor(inputImage, grayscale, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(image, grayscale, cv::COLOR_BGR2GRAY);
 
     const DetectionConfig& config = getAppConfig().detection;
 
@@ -245,8 +254,7 @@ ScanResult detectAndWarpDocument(
         cv::CHAIN_APPROX_SIMPLE);
 
     if (edgeContours.empty() && thresholdContours.empty()) {
-        result.message = "No contours found.";
-        return result;
+        return false;
     }
 
     std::vector<cv::Point> bestPolygon;
@@ -256,18 +264,18 @@ ScanResult detectAndWarpDocument(
 
     appendQuadrilateralCandidates(
         thresholdContours,
-        inputImage.size(),
+        image.size(),
         candidates);
     appendQuadrilateralCandidates(
         edgeContours,
-        inputImage.size(),
+        image.size(),
         candidates);
 
     for (const auto& candidate : candidates) {
         const double score = scoreDocumentContour(
             candidate,
             grayscale,
-            inputImage.size());
+            image.size());
         if (score > bestScore) {
             bestScore = score;
             bestPolygon = candidate;
@@ -275,11 +283,72 @@ ScanResult detectAndWarpDocument(
     }
 
     if (bestPolygon.size() != 4) {
-        result.message = "Failed to detect a 4-corner document contour.";
+        return false;
+    }
+
+    corners = orderCorners(bestPolygon);
+    return true;
+}
+
+bool detectDocumentCornersPreview(
+    const cv::Mat& inputImage,
+    std::vector<cv::Point2f>& corners) {
+    const DetectionConfig& config = getAppConfig().detection;
+    const int longestSide = std::max(inputImage.cols, inputImage.rows);
+
+    if (longestSide <= config.previewMaxDimension) {
+        return detectDocumentCornersFromImage(inputImage, corners);
+    }
+
+    const double previewScale =
+        static_cast<double>(config.previewMaxDimension) /
+        static_cast<double>(longestSide);
+
+    const int previewWidth = std::max(
+        1,
+        static_cast<int>(std::lround(inputImage.cols * previewScale)));
+    const int previewHeight = std::max(
+        1,
+        static_cast<int>(std::lround(inputImage.rows * previewScale)));
+
+    cv::Mat previewImage;
+    cv::resize(
+        inputImage,
+        previewImage,
+        cv::Size(previewWidth, previewHeight),
+        0.0,
+        0.0,
+        cv::INTER_AREA);
+
+    std::vector<cv::Point2f> previewCorners;
+    if (!detectDocumentCornersFromImage(previewImage, previewCorners)) {
+        return false;
+    }
+
+    const float scaleX =
+        static_cast<float>(inputImage.cols) / static_cast<float>(previewWidth);
+    const float scaleY =
+        static_cast<float>(inputImage.rows) / static_cast<float>(previewHeight);
+    corners = scaleCorners(previewCorners, scaleX, scaleY);
+    return true;
+}
+
+}  // namespace
+
+ScanResult detectAndWarpDocument(
+    const cv::Mat& inputImage,
+    cv::Mat& warpedImage) {
+    ScanResult result;
+
+    if (inputImage.empty()) {
+        result.message = "Input image is empty.";
         return result;
     }
 
-    result.corners = orderCorners(bestPolygon);
+    if (!detectDocumentCornersPreview(inputImage, result.corners)) {
+        result.message = "Failed to detect a 4-corner document contour.";
+        return result;
+    }
 
     const double widthTop = distanceBetween(result.corners[0], result.corners[1]);
     const double widthBottom = distanceBetween(result.corners[3], result.corners[2]);

@@ -17,6 +17,7 @@
 
 현재 검출 로직은 단순히 가장 큰 사각형만 고르는 방식이 아니라, 밝기와 내부 균일도를 함께 평가해서 책 외곽보다 실제 흰 페이지 영역을 더 우선하도록 조정되어 있습니다.
 예를 들어 `inputs/input.jpg`를 넣으면 `outputs/input.jpg`와 `outputs/input_marked.jpg`가 생성됩니다.
+또한 성능을 위해 문서 검출은 축소된 preview 해상도에서 먼저 수행하고, 최종 warp만 원본 해상도에서 적용합니다.
 
 ## Project Structure
 

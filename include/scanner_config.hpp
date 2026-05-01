@@ -11,6 +11,7 @@ struct OutputConfig {
 };
 
 struct DetectionConfig {
+    int previewMaxDimension;
     double minimumDocumentAreaRatio;
     double polygonApproximationFactor;
     cv::Size gaussianBlurKernelSize;

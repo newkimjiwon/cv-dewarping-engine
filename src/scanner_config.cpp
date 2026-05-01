@@ -10,6 +10,7 @@ AppConfig createAppConfig() {
     config.output.outputDirectory = "outputs";
     config.output.markedSuffix = "_marked";
 
+    config.detection.previewMaxDimension = 1280;
     config.detection.minimumDocumentAreaRatio = 0.2;
     config.detection.polygonApproximationFactor = 0.02;
     config.detection.gaussianBlurKernelSize = cv::Size(5, 5);
