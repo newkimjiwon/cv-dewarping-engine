@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build scanner",
+      "type": "shell",
+      "command": "clang++",
+      "args": [
+        "-std=c++17",
+        "-O2",
+        "src/main.cpp",
+        "src/document_scanner.cpp",
+        "-Iinclude",
+        "-I/opt/homebrew/opt/opencv/include/opencv4",
+        "-L/opt/homebrew/opt/opencv/lib",
+        "-lopencv_imgcodecs",
+        "-lopencv_imgproc",
+        "-lopencv_core",
+        "-o",
+        "scanner"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": [
+        "$gcc"
+      ]
+    },
+    {
+      "label": "Run scanner",
+      "type": "shell",
+      "command": "${workspaceFolder}/scanner",
+      "args": [
+        "inputs/input.jpg"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": "Build scanner",
+      "problemMatcher": []
+    }
+  ]
+}
