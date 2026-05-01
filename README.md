@@ -11,21 +11,26 @@
 1. 문서 가장자리를 찾습니다.
 2. 문서의 4개 꼭짓점을 추정합니다.
 3. 투시 변환으로 문서를 정면에서 본 것처럼 보정합니다.
-4. 결과 이미지를 `outputs/output.jpg`로 저장합니다.
-5. 원본 이미지 위에 검출 영역을 그린 `outputs/marked_output.jpg`도 함께 저장합니다.
+4. 보정된 결과 이미지를 입력 파일명을 유지해서 `outputs/`에 저장합니다.
+5. 원본 이미지 위에 얇은 외곽선과 꼭짓점 좌표를 표시한 마킹 이미지도 같은 이름 기반으로 함께 저장합니다.
 6. 처리 결과를 JSON 문자열로 터미널에 출력합니다.
+
+현재 검출 로직은 단순히 가장 큰 사각형만 고르는 방식이 아니라, 밝기와 내부 균일도를 함께 평가해서 책 외곽보다 실제 흰 페이지 영역을 더 우선하도록 조정되어 있습니다.
+예를 들어 `inputs/input.jpg`를 넣으면 `outputs/input.jpg`와 `outputs/input_marked.jpg`가 생성됩니다.
 
 ## Project Structure
 
 ```text
 cv-dewarping-engine/
 ├── include/
-│   └── document_scanner.hpp   # 비전 처리 로직의 공개 인터페이스
+│   ├── document_scanner.hpp   # 비전 처리 로직의 공개 인터페이스
+│   └── scanner_config.hpp     # 조정 가능한 설정 인터페이스
 ├── inputs/
 │   └── .gitkeep               # 테스트용 입력 이미지를 넣는 폴더
 ├── outputs/
 │   └── .gitkeep               # 보정된 결과 이미지가 저장되는 폴더
 ├── src/
+│   ├── scanner_config.cpp     # 하드코딩된 설정값 관리
 │   ├── document_scanner.cpp   # 문서 검출 + 투시 변환 로직
 │   └── main.cpp               # CLI 진입점, 파일 입출력, JSON 출력
 ├── .gitignore
@@ -63,7 +68,7 @@ pkg-config --modversion opencv4
 
 ```bash
 clang++ -std=c++17 -O2 \
-  src/main.cpp src/document_scanner.cpp \
+  src/main.cpp src/scanner_config.cpp src/document_scanner.cpp \
   -Iinclude \
   $(pkg-config --cflags --libs opencv4) \
   -o scanner
@@ -126,14 +131,14 @@ inputs/book-page.jpg
 
 성공하면:
 
-- 보정된 이미지가 `outputs/output.jpg`에 저장됩니다.
-- 원본 위에 꼭짓점과 외곽선이 표시된 이미지가 `outputs/marked_output.jpg`에 저장됩니다.
+- 보정된 결과 이미지가 입력 파일명 기준으로 `outputs/`에 저장됩니다.
+- 원본 위에 얇은 외곽선과 꼭짓점 좌표가 표시된 이미지가 `<원본이름>_marked` 형식으로 `outputs/`에 저장됩니다.
 - 터미널에는 JSON 결과가 출력됩니다.
 
 예시:
 
 ```json
-{"success":true,"message":"Document detected and warped successfully.","output_path":"outputs/output.jpg","marked_output_path":"outputs/marked_output.jpg","corners":[{"x":120.45,"y":85.10},{"x":980.22,"y":70.35},{"x":1015.80,"y":1420.44},{"x":95.77,"y":1452.19}]}
+{"success":true,"message":"Document detected and warped successfully.","output_path":"outputs/input.jpg","marked_output_path":"outputs/input_marked.jpg","corners":[{"x":120.45,"y":85.10},{"x":980.22,"y":70.35},{"x":1015.80,"y":1420.44},{"x":95.77,"y":1452.19}]}
 ```
 
 ## 5. If Something Goes Wrong
@@ -195,7 +200,10 @@ pkg-config --cflags --libs opencv4
 ## Code Design Notes
 
 - [src/main.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/main.cpp:1): CLI 인자 처리, 이미지 로드/저장, JSON 출력 담당
+- [src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/scanner_config.cpp:1): 검출, 마킹, 출력 경로, 흑백 스캔 처리에 쓰는 설정값 관리
 - [src/document_scanner.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/document_scanner.cpp:1): 문서 검출 및 투시 보정 담당
 - [include/document_scanner.hpp](/Users/newkimjiwon/project/cv-dewarping-engine/include/document_scanner.hpp:1): 비전 모듈 인터페이스
+
+튜닝이 필요할 때는 보통 [src/scanner_config.cpp](/Users/newkimjiwon/project/cv-dewarping-engine/src/scanner_config.cpp:1)의 값만 먼저 조정하면 됩니다.
 
 즉, 나중에 모바일 환경으로 옮길 때는 `main.cpp`를 대체하고 `detectAndWarpDocument()`를 재사용하는 방향으로 가져가면 됩니다.

@@ -1,8 +1,10 @@
 #include "document_scanner.hpp"
+#include "scanner_config.hpp"
 
 #include <opencv2/imgcodecs.hpp>
 
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -70,21 +72,42 @@ void printUsage(const char* executableName) {
     std::cerr << "Usage: " << executableName << " <input-image-path>\n";
 }
 
+std::string buildOutputPath(
+    const std::string& inputPath,
+    const OutputConfig& outputConfig,
+    bool marked) {
+    const std::filesystem::path inputFilePath(inputPath);
+    const std::string stem = inputFilePath.stem().string();
+    const std::string extension = inputFilePath.has_extension()
+        ? inputFilePath.extension().string()
+        : ".jpg";
+
+    std::filesystem::path outputFilePath(outputConfig.outputDirectory);
+    if (marked) {
+        outputFilePath /= stem + outputConfig.markedSuffix + extension;
+    } else {
+        outputFilePath /= stem + extension;
+    }
+
+    return outputFilePath.string();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
-    const std::string outputPath = "outputs/output.jpg";
-    const std::string markedOutputPath = "outputs/marked_output.jpg";
+    const OutputConfig& outputConfig = getAppConfig().output;
 
     if (argc != 2) {
         printUsage(argv[0]);
         ScanResult invalidArgs;
         invalidArgs.message = "Exactly one input image path is required.";
-        std::cout << toJson(invalidArgs, outputPath, markedOutputPath) << '\n';
+        std::cout << toJson(invalidArgs, "", "") << '\n';
         return EXIT_FAILURE;
     }
 
     const std::string inputPath = argv[1];
+    const std::string outputPath = buildOutputPath(inputPath, outputConfig, false);
+    const std::string markedOutputPath = buildOutputPath(inputPath, outputConfig, true);
     const cv::Mat inputImage = cv::imread(inputPath, cv::IMREAD_COLOR);
 
     if (inputImage.empty()) {
@@ -98,14 +121,15 @@ int main(int argc, char** argv) {
     ScanResult result = detectAndWarpDocument(inputImage, warpedImage);
 
     if (result.success) {
+        std::filesystem::create_directories(outputConfig.outputDirectory);
         const cv::Mat markedImage = createMarkedPreview(inputImage, result.corners);
 
         if (!cv::imwrite(outputPath, warpedImage)) {
             result.success = false;
-            result.message = "Document was detected, but saving output.jpg failed.";
+            result.message = "Document was detected, but saving failed: " + outputPath;
         } else if (markedImage.empty() || !cv::imwrite(markedOutputPath, markedImage)) {
             result.success = false;
-            result.message = "Document was detected, but saving marked_output.jpg failed.";
+            result.message = "Document was detected, but saving failed: " + markedOutputPath;
         }
     }
 

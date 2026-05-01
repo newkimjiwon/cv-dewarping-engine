@@ -9,6 +9,7 @@
         "-std=c++17",
         "-O2",
         "src/main.cpp",
+        "src/scanner_config.cpp",
         "src/document_scanner.cpp",
         "-Iinclude",
         "-I/opt/homebrew/opt/opencv/include/opencv4",
