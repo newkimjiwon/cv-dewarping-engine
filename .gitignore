@@ -2,4 +2,5 @@ build/
 scanner
 outputs/*
 !outputs/.gitkeep
+uploads/
 .DS_Store

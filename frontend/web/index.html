@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CV Dewarping Engine — 테스트</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --line: #e3e6ea;
+    --text: #1c2430; --sub: #6b7684; --accent: #2563eb; --accent-soft: #eff4ff;
+    --err: #d5382f; --ok: #15803d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181e; --card: #1d232c; --line: #313a46;
+      --text: #e7ebf0; --sub: #96a0ad; --accent: #5b8def; --accent-soft: #223046;
+      --err: #f0716a; --ok: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+    padding: 32px 20px 64px; line-height: 1.55;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--sub); font-size: 14px; margin-bottom: 24px; }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px; margin-bottom: 20px;
+  }
+  #drop {
+    border: 2px dashed var(--line); border-radius: 10px;
+    padding: 36px 16px; text-align: center; color: var(--sub);
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #drop.hover, #drop:hover { border-color: var(--accent); background: var(--accent-soft); }
+  #drop strong { color: var(--text); }
+  #file { display: none; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 16px; }
+  .modes { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .modes label {
+    padding: 6px 14px; border-radius: 7px; font-size: 14px; cursor: pointer; color: var(--sub);
+  }
+  .modes input { display: none; }
+  .modes input:checked + span { }
+  .modes label:has(input:checked) { background: var(--accent); color: #fff; }
+  button#scan {
+    background: var(--accent); color: #fff; border: 0; border-radius: 9px;
+    padding: 9px 22px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button#scan:disabled { opacity: .45; cursor: default; }
+  #status { font-size: 14px; color: var(--sub); }
+  #status.err { color: var(--err); }
+  #status.ok { color: var(--ok); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  figure { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  figcaption {
+    font-size: 13px; font-weight: 600; padding: 10px 14px;
+    border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;
+  }
+  figcaption a { color: var(--accent); text-decoration: none; font-weight: 500; }
+  figure .imgbox { padding: 12px; background: repeating-conic-gradient(var(--bg) 0 25%, var(--card) 0 50%) 0 0 / 20px 20px; }
+  figure img { display: block; width: 100%; height: auto; border-radius: 4px; }
+
+  details { margin-top: 16px; font-size: 13px; }
+  details pre {
+    margin-top: 8px; padding: 12px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; overflow-x: auto; font-size: 12px;
+  }
+  .hidden { display: none; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; vertical-align: -2px;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .7s linear infinite; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📄 CV Dewarping Engine</h1>
+  <p class="sub">문서 사진을 올리면 검출 → 종횡비 복원 → 곡면 보정 → 후처리 결과를 보여줍니다. 이미지는 로컬에서만 처리됩니다.</p>
+
+  <div class="panel">
+    <div id="drop">
+      <strong>이미지를 끌어다 놓거나 클릭해서 선택</strong><br>
+      붙여넣기(Cmd+V)도 됩니다 · JPG / PNG / WebP
+      <div id="picked" style="margin-top:8px; font-size:13px;"></div>
+    </div>
+    <input type="file" id="file" accept="image/*">
+    <div class="controls">
+      <div class="modes">
+        <label><input type="radio" name="mode" value="color" checked><span>컬러</span></label>
+        <label><input type="radio" name="mode" value="gray"><span>흑백</span></label>
+        <label><input type="radio" name="mode" value="bw"><span>이진화</span></label>
+      </div>
+      <button id="scan" disabled>스캔</button>
+      <span id="status"></span>
+    </div>
+  </div>
+
+  <div id="results" class="grid hidden">
+    <figure>
+      <figcaption>원본</figcaption>
+      <div class="imgbox"><img id="img-original" alt="원본"></div>
+    </figure>
+    <figure>
+      <figcaption>검출 영역</figcaption>
+      <div class="imgbox"><img id="img-marked" alt="검출 영역"></div>
+    </figure>
+    <figure>
+      <figcaption>스캔 결과 <a id="download" download>다운로드</a></figcaption>
+      <div class="imgbox"><img id="img-result" alt="스캔 결과"></div>
+    </figure>
+  </div>
+
+  <details id="json-box" class="hidden">
+    <summary>응답 JSON</summary>
+    <pre id="json"></pre>
+  </details>
+</div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const scanButton = document.getElementById('scan');
+const statusEl = document.getElementById('status');
+const picked = document.getElementById('picked');
+let selectedFile = null;
+
+function setStatus(html, cls) {
+  statusEl.innerHTML = html;
+  statusEl.className = cls || '';
+}
+
+function selectFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  selectedFile = file;
+  picked.textContent = `선택됨: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+  scanButton.disabled = false;
+  setStatus('');
+}
+
+drop.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => selectFile(fileInput.files[0]));
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('hover');
+}));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove('hover');
+}));
+drop.addEventListener('drop', e => selectFile(e.dataTransfer.files[0]));
+document.addEventListener('paste', e => {
+  const item = [...e.clipboardData.items].find(i => i.type.startsWith('image/'));
+  if (item) selectFile(item.getAsFile());
+});
+
+scanButton.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  scanButton.disabled = true;
+  setStatus('<span class="spinner"></span>처리 중...');
+  const started = performance.now();
+
+  try {
+    const response = await fetch(`/api/scan?mode=${mode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': selectedFile.type },
+      body: selectedFile,
+    });
+    const data = await response.json();
+    const elapsed = ((performance.now() - started) / 1000).toFixed(2);
+
+    document.getElementById('json').textContent = JSON.stringify(data, null, 2);
+    document.getElementById('json-box').classList.remove('hidden');
+
+    if (data.success) {
+      document.getElementById('img-original').src = data.input_url;
+      document.getElementById('img-marked').src = data.marked_url;
+      document.getElementById('img-result').src = data.output_url;
+      const dl = document.getElementById('download');
+      dl.href = data.output_url;
+      dl.setAttribute('download', `scan_${mode}${data.output_url.slice(data.output_url.lastIndexOf('.'))}`);
+      document.getElementById('results').classList.remove('hidden');
+      setStatus(`완료 (${elapsed}s)`, 'ok');
+    } else {
+      document.getElementById('results').classList.add('hidden');
+      setStatus(`실패: ${data.message}`, 'err');
+    }
+  } catch (error) {
+    setStatus(`요청 오류: ${error.message}`, 'err');
+  } finally {
+    scanButton.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
