@@ -1,6 +1,8 @@
 #ifndef DOCUMENT_SCANNER_HPP
 #define DOCUMENT_SCANNER_HPP
 
+#include "scanner_config.hpp"
+
 #include <opencv2/core.hpp>
 
 #include <string>
@@ -14,7 +16,8 @@ struct ScanResult {
 
 ScanResult detectAndWarpDocument(
     const cv::Mat& inputImage,
-    cv::Mat& warpedImage);
+    cv::Mat& warpedImage,
+    ScanColorMode colorMode = ScanColorMode::Color);
 
 cv::Mat createMarkedPreview(
     const cv::Mat& inputImage,

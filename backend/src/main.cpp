@@ -69,7 +69,24 @@ std::string toJson(
 }
 
 void printUsage(const char* executableName) {
-    std::cerr << "Usage: " << executableName << " <input-image-path>\n";
+    std::cerr << "Usage: " << executableName
+              << " <input-image-path> [--mode=color|gray|bw]\n";
+}
+
+bool parseColorMode(const std::string& argument, ScanColorMode& mode) {
+    if (argument == "--mode=color") {
+        mode = ScanColorMode::Color;
+        return true;
+    }
+    if (argument == "--mode=gray") {
+        mode = ScanColorMode::Grayscale;
+        return true;
+    }
+    if (argument == "--mode=bw") {
+        mode = ScanColorMode::BlackWhite;
+        return true;
+    }
+    return false;
 }
 
 std::string buildOutputPath(
@@ -97,10 +114,14 @@ std::string buildOutputPath(
 int main(int argc, char** argv) {
     const OutputConfig& outputConfig = getAppConfig().output;
 
-    if (argc != 2) {
+    ScanColorMode colorMode = ScanColorMode::Color;
+
+    if (argc < 2 || argc > 3 ||
+        (argc == 3 && !parseColorMode(argv[2], colorMode))) {
         printUsage(argv[0]);
         ScanResult invalidArgs;
-        invalidArgs.message = "Exactly one input image path is required.";
+        invalidArgs.message =
+            "Expected an input image path and optionally --mode=color|gray|bw.";
         std::cout << toJson(invalidArgs, "", "") << '\n';
         return EXIT_FAILURE;
     }
@@ -118,13 +139,15 @@ int main(int argc, char** argv) {
     }
 
     cv::Mat warpedImage;
-    ScanResult result = detectAndWarpDocument(inputImage, warpedImage);
+    ScanResult result = detectAndWarpDocument(inputImage, warpedImage, colorMode);
 
     if (result.success) {
         std::filesystem::create_directories(outputConfig.outputDirectory);
         const cv::Mat markedImage = createMarkedPreview(inputImage, result.corners);
+        const std::vector<int> writeParams = {
+            cv::IMWRITE_JPEG_QUALITY, getAppConfig().jpegQuality };
 
-        if (!cv::imwrite(outputPath, warpedImage)) {
+        if (!cv::imwrite(outputPath, warpedImage, writeParams)) {
             result.success = false;
             result.message = "Document was detected, but saving failed: " + outputPath;
         } else if (markedImage.empty() || !cv::imwrite(markedOutputPath, markedImage)) {

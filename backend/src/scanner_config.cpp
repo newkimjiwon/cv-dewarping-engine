@@ -11,12 +11,13 @@ AppConfig createAppConfig() {
     config.output.markedSuffix = "_marked";
 
     config.detection.previewMaxDimension = 1280;
-    config.detection.minimumDocumentAreaRatio = 0.2;
+    config.detection.minimumDocumentAreaRatio = 0.1;
     config.detection.polygonApproximationFactor = 0.02;
     config.detection.gaussianBlurKernelSize = cv::Size(5, 5);
     config.detection.gaussianBlurSigma = 0.0;
-    config.detection.cannyLowThreshold = 75.0;
-    config.detection.cannyHighThreshold = 200.0;
+    config.detection.cannyLowThreshold = 30.0;
+    config.detection.cannyHighThreshold = 100.0;
+    config.detection.edgeDilateKernelSize = 3;
     config.detection.thresholdMorphKernelSize = 5;
     config.detection.borderMarginDivisor = 50;
     config.detection.minimumBorderMarginPixels = 12;
@@ -37,12 +38,30 @@ AppConfig createAppConfig() {
     config.marker.textOutlineThickness = 3;
     config.marker.textOffset = cv::Point(8, -8);
 
-    config.scanEnhancement.medianBlurKernelSize = 1;
+    config.rectification.minimumAspectRatio = 0.2;
+    config.rectification.maximumAspectRatio = 5.0;
+    config.rectification.parallelTolerance = 0.02;
+    config.rectification.fallbackFocalFactor = 0.7;
+    config.rectification.minimumFocalFactor = 0.3;
+    config.rectification.maximumFocalFactor = 3.0;
+
+    config.dewarp.enabled = true;
+    config.dewarp.polynomialDegree = 3;
+    config.dewarp.meshGridSize = 41;
+    config.dewarp.minimumDeviationPixels = 2.5;
+    config.dewarp.minimumDeviationRatio = 0.004;
+    config.dewarp.maximumDeviationRatio = 0.25;
+
+    config.scanEnhancement.backgroundDilateRatio = 0.015;
+    config.scanEnhancement.backgroundBlurSigmaRatio = 0.02;
+    config.scanEnhancement.sharpenAmount = 0.6;
+    config.scanEnhancement.sharpenSigma = 1.2;
+    config.scanEnhancement.medianBlurKernelSize = 3;
     config.scanEnhancement.adaptiveThresholdMaxValue = 255.0;
     config.scanEnhancement.adaptiveThresholdBlockSize = 41;
-    config.scanEnhancement.adaptiveThresholdC = 1.5;
-    config.scanEnhancement.grayscaleBlendWeight = 0.96;
-    config.scanEnhancement.thresholdBlendWeight = 0.04;
+    config.scanEnhancement.adaptiveThresholdC = 8.0;
+
+    config.jpegQuality = 95;
 
     return config;
 }
