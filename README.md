@@ -4,16 +4,21 @@
 
 이 프로젝트는 macOS + VS Code 환경에서 시작하는 것을 기준으로 작성되어 있고, 나중에 JNI나 Objective-C++로 옮기기 쉽도록 `main()`과 비전 처리 로직을 분리해 두었습니다. 현재는 C++ 코어를 `backend/`에 두고, 이후 iOS 앱 레이어는 `frontend/ios-app/`에 붙일 수 있도록 폴더를 분리해 두었습니다.
 
+- 알고리즘 상세와 튜닝 기록: [docs/ENGINE.md](docs/ENGINE.md)
+- 남은 과제와 우선순위: [docs/ROADMAP.md](docs/ROADMAP.md)
+
 ## What This Project Does
 
 입력 이미지 1장을 받아서 아래 작업을 수행합니다.
 
 1. 문서 가장자리를 찾습니다.
 2. 문서의 4개 꼭짓점을 추정합니다.
-3. 투시 변환으로 문서를 정면에서 본 것처럼 보정합니다.
-4. 보정된 결과 이미지를 입력 파일명을 유지해서 `outputs/`에 저장합니다.
-5. 원본 이미지 위에 얇은 외곽선과 꼭짓점 좌표를 표시한 마킹 이미지도 같은 이름 기반으로 함께 저장합니다.
-6. 처리 결과를 JSON 문자열로 터미널에 출력합니다.
+3. 4개 꼭짓점의 원근 소실 정보로부터 문서의 **실제 종횡비**를 복원합니다 (Zhang-He whiteboard rectification). 덕분에 비스듬히 찍어도 위에서 수직으로 찍은 것 같은 비율로 펴집니다.
+4. 투시 변환으로 문서를 정면에서 본 것처럼 보정합니다. 이때 경계가 곡선이면(펼친 책의 불룩한 페이지 등) 경계 편차를 다항식으로 피팅한 **메시 기반 곡면 보정(dewarping)** 으로 휘어진 페이지를 폅니다. 평면 문서는 자동으로 일반 투시 변환만 수행합니다.
+5. 색상 모드에 따라 후처리합니다. 기본은 vFlat처럼 **컬러 유지 + 조명/그림자 평탄화 + 샤프닝**이고, 흑백(`gray`)과 이진화 스캔(`bw`) 모드도 있습니다.
+6. 보정된 결과 이미지를 입력 파일명을 유지해서 `outputs/`에 저장합니다.
+7. 원본 이미지 위에 얇은 외곽선과 꼭짓점 좌표를 표시한 마킹 이미지도 같은 이름 기반으로 함께 저장합니다.
+8. 처리 결과를 JSON 문자열로 터미널에 출력합니다.
 
 현재 검출 로직은 단순히 가장 큰 사각형만 고르는 방식이 아니라, 밝기와 내부 균일도를 함께 평가해서 책 외곽보다 실제 흰 페이지 영역을 더 우선하도록 조정되어 있습니다.
 예를 들어 `inputs/input.jpg`를 넣으면 `outputs/input.jpg`와 `outputs/input_marked.jpg`가 생성됩니다.
@@ -31,7 +36,13 @@ cv-dewarping-engine/
 │       ├── scanner_config.cpp     # 하드코딩된 설정값 관리
 │       ├── document_scanner.cpp   # 문서 검출 + 투시 변환 로직
 │       └── main.cpp               # CLI 진입점, 파일 입출력, JSON 출력
+├── docs/
+│   ├── ENGINE.md              # 알고리즘 상세 기술 문서
+│   └── ROADMAP.md             # 남은 과제와 우선순위
 ├── frontend/
+│   ├── web/
+│   │   ├── server.py          # 로컬 테스트용 웹 서버 (표준 라이브러리만 사용)
+│   │   └── index.html         # 업로드 / 모드 선택 / 결과 비교 UI
 │   └── ios-app/
 │       └── .gitkeep               # 추후 Swift/iOS 앱 레이어 위치
 ├── inputs/
@@ -134,6 +145,14 @@ inputs/book-page.jpg
 ./scanner inputs/book-page.jpg
 ```
 
+색상 모드를 선택할 수도 있습니다 (기본은 `color`).
+
+```bash
+./scanner inputs/book-page.jpg --mode=color   # 컬러 + 조명 보정 + 샤프닝 (기본)
+./scanner inputs/book-page.jpg --mode=gray    # 흑백 + 조명 보정
+./scanner inputs/book-page.jpg --mode=bw      # 이진화 스캔 (잉크 절약 인쇄용)
+```
+
 성공하면:
 
 - 보정된 결과 이미지가 입력 파일명 기준으로 `outputs/`에 저장됩니다.
@@ -146,7 +165,25 @@ inputs/book-page.jpg
 {"success":true,"message":"Document detected and warped successfully.","output_path":"outputs/input.jpg","marked_output_path":"outputs/input_marked.jpg","corners":[{"x":120.45,"y":85.10},{"x":980.22,"y":70.35},{"x":1015.80,"y":1420.44},{"x":95.77,"y":1452.19}]}
 ```
 
-## 5. If Something Goes Wrong
+## 5. Web Test UI
+
+브라우저에서 바로 테스트하고 싶다면 로컬 웹 서버를 띄우면 됩니다. 외부 패키지 설치가 필요 없습니다.
+
+```bash
+python3 frontend/web/server.py        # 기본 포트 8000
+python3 frontend/web/server.py 9000   # 포트 지정
+```
+
+`http://127.0.0.1:8000` 에 접속하면:
+
+- 드래그 앤 드롭 / 클릭 선택 / 클립보드 붙여넣기(Cmd+V)로 이미지 업로드
+- 컬러 / 흑백 / 이진화 모드 선택
+- 원본 · 검출 영역 · 스캔 결과를 나란히 비교, 결과 다운로드
+- 응답 JSON(꼭짓점 좌표 포함) 확인
+
+`scanner` 바이너리가 없으면 서버가 시작할 때 자동으로 빌드를 시도합니다. 업로드된 파일은 `uploads/`(gitignore됨)에, 결과는 `outputs/`에 저장되며 모든 처리는 로컬에서만 이뤄집니다.
+
+## 6. If Something Goes Wrong
 
 ### `pkg-config: command not found`
 
@@ -178,10 +215,12 @@ pkg-config --cflags --libs opencv4
 
 - Grayscale
 - Gaussian Blur
-- Canny Edge Detection
+- Canny Edge Detection (+ 끊긴 엣지를 잇는 dilation)
 - Contour Search
-- Polygon Approximation
-- Perspective Transform
+- Polygon Approximation (epsilon을 점차 키우며 4점 근사 재시도)
+- Aspect Ratio Recovery (원근 정보로 실제 문서 비율 복원)
+- Perspective Transform 또는 Curved Dewarp (경계가 휘어 있으면 Coons patch 메시 remap)
+- Illumination Flattening + Sharpening (컬러/흑백 모드)
 
 그래서 아래 같은 이미지에서는 실패할 수 있습니다.
 
